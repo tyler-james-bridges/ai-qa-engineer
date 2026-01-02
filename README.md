@@ -2,7 +2,14 @@
 
 Automated, human-like testing for your Pull Requests using Claude Code + Playwright MCP.
 
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://tyler-james-bridges.github.io/ai-qa-engineer/)
+[![Run QA](https://img.shields.io/badge/run-QA%20test-blue)](../../actions/workflows/qa-engineer.yml)
+
 > **Credit:** Based on the concept by [@alexanderOpalic](https://alexop.dev/posts/building_ai_qa_engineer_claude_code_playwright/).
+
+## Demo
+
+**[Live demo site](https://tyler-james-bridges.github.io/ai-qa-engineer/)** with intentional bugs → Run the QA workflow against it to see real results.
 
 ## Features
 
