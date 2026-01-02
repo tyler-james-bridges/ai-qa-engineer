@@ -12,6 +12,7 @@ Automated, human-like testing for your Pull Requests using Claude Code + Playwri
 - **Smart Page Load Detection** - Waits for true page readiness, not just DOM loaded
 - **ARIA-Aware Element References** - Reports bugs using accessible names and roles for precise identification
 - **Focused Testing Modes** - Run targeted tests for accessibility, performance, forms, or mobile
+- **Visual Regression Testing** - Compare screenshots between runs to detect unintended visual changes
 
 ## How It Works
 
@@ -156,6 +157,41 @@ const snapshot = await getAriaSnapshot(page);
 
 // Interact by ref
 await clickByRef(page, 'e5');
+```
+
+### Visual Regression (`scripts/visual-regression.cjs`)
+
+Compare screenshots between runs to detect visual changes:
+
+```bash
+# Compare current screenshots against baseline
+npm run visual:compare
+
+# Update baseline with current screenshots
+npm run visual:update-baseline
+```
+
+Or use the dedicated workflow:
+1. Go to Actions → Visual Regression Testing
+2. Enter the URL to test
+3. First run creates baseline, subsequent runs compare against it
+4. Check "Update baseline screenshots" to set a new baseline
+
+The comparison generates:
+- **Diff images** highlighting changed pixels in red
+- **Pass/fail status** based on configurable threshold
+- **Detailed report** with percentage of pixels changed
+
+```javascript
+const { compareImages, compareDirectories } = require('./scripts/visual-regression.cjs');
+
+// Compare two images
+const result = await compareImages('baseline.png', 'current.png', 'diff.png');
+console.log(`Match: ${result.match}, Diff: ${result.diffPercent}%`);
+
+// Compare entire directories
+const report = await compareDirectories('./baseline', './current', './diff');
+console.log(`Pass rate: ${report.summary.passRate}%`);
 ```
 
 ## Customization

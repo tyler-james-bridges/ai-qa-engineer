@@ -1,16 +1,21 @@
 name: AI QA Engineer
 
+# This workflow is designed to be copied to your repository.
+# By default, it only runs on manual trigger.
+# Uncomment the pull_request trigger below once you have a preview deployment URL configured.
+
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  # Uncomment below to run on PRs (requires preview deployment URL configuration)
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       url:
-        description: 'URL to test (optional, defaults to PR preview URL)'
-        required: false
+        description: 'URL to test (required)'
+        required: true
         type: string
       focus:
-        description: 'Focus area (optional): accessibility, performance, forms, mobile, all'
+        description: 'Focus area: accessibility, performance, forms, mobile, all'
         required: false
         type: string
         default: 'all'
@@ -30,6 +35,15 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      - name: Validate URL Input
+        run: |
+          if [ -z "${{ inputs.url }}" ]; then
+            echo "❌ Error: URL is required"
+            echo "Please provide a URL to test when triggering this workflow."
+            exit 1
+          fi
+          echo "✓ Testing URL: ${{ inputs.url }}"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -38,16 +52,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 'true'
-
-      - name: Install Playwright Browsers
-        run: npx playwright install chromium --with-deps
-        # Cache Playwright browsers to avoid re-downloading
-        shell: bash
 
       - name: Cache Playwright Browsers
         id: playwright-cache
@@ -58,37 +62,38 @@ jobs:
           restore-keys: |
             playwright-${{ runner.os }}-
 
-      - name: Wait for Preview Deployment
-        id: preview
-        if: github.event_name == 'pull_request'
-        timeout-minutes: 5
+      - name: Install Dependencies
+        run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 'true'
+
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Install Playwright Deps (cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Check URL is reachable
+        id: url-check
         run: |
-          # Set preview URL - customize based on your platform
-          # Examples:
-          # Vercel: https://${{ github.event.repository.name }}-git-${{ github.head_ref }}-${{ github.repository_owner }}.vercel.app
-          # Netlify: https://deploy-preview-${{ github.event.number }}--your-site.netlify.app
-          # GitHub Pages: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          echo "Checking if URL is reachable..."
+          TEST_URL="${{ inputs.url }}"
 
-          PREVIEW_URL="${{ inputs.url || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}"
-          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
-          echo "Testing URL: $PREVIEW_URL"
+          # Try to reach the URL
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$TEST_URL" || echo "000")
 
-          # Smart deployment wait: poll for HTTP 200 or timeout
-          echo "Waiting for preview deployment to be ready..."
-          max_attempts=30
-          attempt=0
-          while [ $attempt -lt $max_attempts ]; do
-            if curl -s -f -o /dev/null -w "%{http_code}" "$PREVIEW_URL" | grep -q "200"; then
-              echo "✓ Preview deployment is ready!"
-              exit 0
-            fi
-            attempt=$((attempt + 1))
-            echo "Attempt $attempt/$max_attempts: Waiting for deployment..."
-            sleep 5
-          done
-
-          echo "⚠️  Preview deployment not ready after ${max_attempts}*5 seconds, continuing anyway..."
-          exit 0
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "⚠️ Warning: Could not reach $TEST_URL (connection failed)"
+            echo "reachable=false" >> $GITHUB_OUTPUT
+          elif [ "$HTTP_CODE" -ge 400 ]; then
+            echo "⚠️ Warning: $TEST_URL returned HTTP $HTTP_CODE"
+            echo "reachable=false" >> $GITHUB_OUTPUT
+          else
+            echo "✓ URL is reachable (HTTP $HTTP_CODE)"
+            echo "reachable=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Screenshots Directory
         run: mkdir -p screenshots
@@ -97,27 +102,30 @@ jobs:
         id: qa-run
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TEST_URL: ${{ steps.preview.outputs.preview_url || inputs.url }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TEST_URL: ${{ inputs.url }}
           TEST_FOCUS: ${{ inputs.focus || 'all' }}
         run: |
           echo "::group::QA Testing Configuration"
           echo "URL: $TEST_URL"
           echo "Focus Area: $TEST_FOCUS"
-          echo "PR Number: $PR_NUMBER"
           echo "::endgroup::"
+
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "❌ Error: ANTHROPIC_API_KEY secret is not set"
+            echo "Please add your Anthropic API key to repository secrets."
+            exit 1
+          fi
 
           echo "::group::Starting AI QA Engineer"
           START_TIME=$(date +%s)
 
-          npx claude-code --print \
+          npx @anthropic-ai/claude-code --print \
             --mcp-config .claude/mcp-config.json \
             --system-prompt "$(cat .claude/qa-engineer-prompt.md)" \
             "Test the website at $TEST_URL
 
              ## Test Configuration
              - Focus area: $TEST_FOCUS
-             - PR Number: $PR_NUMBER
 
              ## Required Testing
 
@@ -190,65 +198,18 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-      - name: Post QA Report to PR
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        env:
-          QA_DURATION: ${{ steps.qa-run.outputs.qa_duration_seconds || '0' }}
-        with:
-          script: |
-            const fs = require('fs');
+      - name: Summary
+        if: always()
+        run: |
+          echo "## AI QA Engineer Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL Tested:** ${{ inputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Focus Area:** ${{ inputs.focus || 'all' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-            let report = '## 🔍 AI QA Engineer Report\n\n';
-
-            if (fs.existsSync('qa-report.md')) {
-              const content = fs.readFileSync('qa-report.md', 'utf8');
-              report += content;
-
-              // Add artifacts link
-              report += '\n\n### 📎 Artifacts\n';
-              report += `- [Screenshots](../actions/runs/${{ github.run_id }})\n`;
-              report += `- [Full Report](../actions/runs/${{ github.run_id }})\n`;
-            } else {
-              report += '⚠️ QA report was not generated. Check the [workflow logs](../actions/runs/${{ github.run_id }}) for details.';
-            }
-
-            // Add metrics section
-            report += '\n\n### 📊 Metrics\n';
-            const duration = parseInt(process.env.QA_DURATION) || 0;
-            report += `- Test Duration: ${duration}s\n`;
-
-            // Estimate cost (Claude API pricing example)
-            const estimatedCost = (0.005 * duration / 60).toFixed(4);
-            report += `- Estimated Cost: $${estimatedCost}\n`;
-            report += `- Run ID: ${{ github.run_id }}\n`;
-
-            report += '\n\n---\n';
-            report += '*Automated testing by [AI QA Engineer](https://github.com/tyler-james-bridges/ai-qa-engineer) using Claude Code + Playwright*';
-
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(comment =>
-              comment.body.includes('AI QA Engineer Report')
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: report
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: report
-              });
-            }
+          if [ -f "qa-report.md" ]; then
+            echo "### Report" >> $GITHUB_STEP_SUMMARY
+            cat qa-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No QA report generated. Check the logs for details." >> $GITHUB_STEP_SUMMARY
+          fi

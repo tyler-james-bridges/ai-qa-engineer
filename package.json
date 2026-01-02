@@ -32,11 +32,15 @@
     "lint:fix": "eslint scripts/ .github/workflows/ --fix",
     "test": "node --test scripts/**/*.test.js",
     "test:watch": "node --test --watch scripts/**/*.test.js",
-    "install:browsers": "playwright install chromium"
+    "install:browsers": "playwright install chromium",
+    "visual:compare": "node scripts/visual-regression.cjs compare",
+    "visual:update-baseline": "node scripts/visual-regression.cjs update-baseline"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.0.76",
-    "playwright": "^1.48.0"
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.48.0",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "eslint": "^8.56.0",

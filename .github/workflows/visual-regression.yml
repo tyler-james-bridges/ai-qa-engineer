@@ -1,0 +1,206 @@
+name: Visual Regression Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to test'
+        required: true
+        type: string
+      update_baseline:
+        description: 'Update baseline screenshots'
+        required: false
+        type: boolean
+        default: false
+      baseline_run_id:
+        description: 'Run ID to use as baseline (leave empty for latest)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+env:
+  NODE_VERSION: '20'
+  SCREENSHOTS_DIR: './screenshots'
+  BASELINE_DIR: './screenshots/baseline'
+  DIFF_DIR: './screenshots/diff'
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Download Baseline Screenshots
+        if: ${{ !inputs.update_baseline }}
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: visual-baseline
+          path: ${{ env.BASELINE_DIR }}
+          workflow: visual-regression.yml
+          run_id: ${{ inputs.baseline_run_id }}
+          if_no_artifact_found: warn
+        continue-on-error: true
+
+      - name: Create Directories
+        run: |
+          mkdir -p ${{ env.SCREENSHOTS_DIR }}
+          mkdir -p ${{ env.BASELINE_DIR }}
+          mkdir -p ${{ env.DIFF_DIR }}
+
+      - name: Capture Screenshots
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TEST_URL: ${{ inputs.url }}
+        run: |
+          echo "Capturing screenshots for visual regression testing..."
+
+          npx claude-code --print \
+            --mcp-config .claude/mcp-config.json \
+            "Navigate to $TEST_URL and capture screenshots for visual regression testing.
+
+             Capture these specific screenshots:
+             1. Full page screenshot at desktop (1920x1080) - save as 'desktop-full.png'
+             2. Full page screenshot at tablet (768x1024) - save as 'tablet-full.png'
+             3. Full page screenshot at mobile (375x667) - save as 'mobile-full.png'
+             4. Above-the-fold screenshot at desktop - save as 'desktop-fold.png'
+             5. Navigation/header area - save as 'navigation.png'
+             6. Footer area - save as 'footer.png'
+
+             For each viewport:
+             - Wait for the page to fully load (network idle)
+             - Wait for any animations to complete
+             - Hide any cookie banners or popups if present
+
+             Save all screenshots to the ./screenshots/ directory.
+             Use descriptive filenames as specified above."
+
+      - name: Run Visual Regression Comparison
+        if: ${{ !inputs.update_baseline }}
+        id: comparison
+        run: |
+          echo "Running visual regression comparison..."
+
+          if [ -d "${{ env.BASELINE_DIR }}" ] && [ "$(ls -A ${{ env.BASELINE_DIR }} 2>/dev/null)" ]; then
+            node scripts/visual-regression.cjs compare \
+              "${{ env.BASELINE_DIR }}" \
+              "${{ env.SCREENSHOTS_DIR }}" \
+              "${{ env.DIFF_DIR }}"
+
+            # Capture exit code
+            EXIT_CODE=$?
+
+            # Read summary for output
+            if [ -f "visual-regression-report.md" ]; then
+              echo "report_exists=true" >> $GITHUB_OUTPUT
+            fi
+
+            exit $EXIT_CODE
+          else
+            echo "No baseline found - this will become the new baseline"
+            echo "no_baseline=true" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Update Baseline
+        if: ${{ inputs.update_baseline || steps.comparison.outputs.no_baseline == 'true' }}
+        run: |
+          echo "Updating baseline screenshots..."
+          node scripts/visual-regression.cjs update-baseline \
+            "${{ env.SCREENSHOTS_DIR }}" \
+            "${{ env.BASELINE_DIR }}"
+
+      - name: Upload Current Screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-screenshots-${{ github.run_number }}
+          path: ${{ env.SCREENSHOTS_DIR }}
+          retention-days: 30
+
+      - name: Upload Diff Images
+        if: ${{ !inputs.update_baseline && steps.comparison.outputs.report_exists == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff-${{ github.run_number }}
+          path: ${{ env.DIFF_DIR }}
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Baseline (for future comparisons)
+        if: ${{ inputs.update_baseline || steps.comparison.outputs.no_baseline == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baseline
+          path: ${{ env.BASELINE_DIR }}
+          retention-days: 90
+
+      - name: Upload Regression Report
+        if: ${{ !inputs.update_baseline }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-report-${{ github.run_number }}
+          path: visual-regression-report.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request' && !inputs.update_baseline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let report = '## 📸 Visual Regression Report\n\n';
+
+            if (fs.existsSync('visual-regression-report.md')) {
+              report += fs.readFileSync('visual-regression-report.md', 'utf8');
+            } else {
+              report += 'No visual regression report generated.\n';
+            }
+
+            report += `\n\n### 📎 Artifacts\n`;
+            report += `- [Screenshots](../actions/runs/${{ github.run_id }})\n`;
+            report += `- [Diff Images](../actions/runs/${{ github.run_id }})\n`;
+
+            report += '\n---\n*Visual regression testing by AI QA Engineer*';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: report
+            });
+
+      - name: Summary
+        run: |
+          echo "## Visual Regression Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "visual-regression-report.md" ]; then
+            cat visual-regression-report.md >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ inputs.update_baseline }}" == "true" ]; then
+            echo "✅ Baseline screenshots updated successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "📸 Screenshots captured - no baseline to compare against" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Run this workflow again with 'Update baseline screenshots' checked to create a baseline." >> $GITHUB_STEP_SUMMARY
+          fi
