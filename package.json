@@ -28,8 +28,8 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "lint": "eslint scripts/ .github/workflows/",
-    "lint:fix": "eslint scripts/ .github/workflows/ --fix",
+    "lint": "eslint scripts/",
+    "lint:fix": "eslint scripts/ --fix",
     "test": "node --test scripts/**/*.test.js",
     "test:watch": "node --test --watch scripts/**/*.test.js",
     "install:browsers": "playwright install chromium",
