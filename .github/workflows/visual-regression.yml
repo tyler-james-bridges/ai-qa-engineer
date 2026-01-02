@@ -74,25 +74,9 @@ jobs:
         run: |
           echo "Capturing screenshots for visual regression testing..."
 
-          npx @anthropic-ai/claude-code --print \
-            --mcp-config .claude/mcp-config.json \
-            "Navigate to $TEST_URL and capture screenshots for visual regression testing.
+          PROMPT="Navigate to $TEST_URL and capture screenshots for visual regression testing. Capture these specific screenshots: 1. Full page screenshot at desktop (1920x1080) - save as 'desktop-full.png' 2. Full page screenshot at tablet (768x1024) - save as 'tablet-full.png' 3. Full page screenshot at mobile (375x667) - save as 'mobile-full.png' 4. Above-the-fold screenshot at desktop - save as 'desktop-fold.png' 5. Navigation/header area - save as 'navigation.png' 6. Footer area - save as 'footer.png'. For each viewport: Wait for the page to fully load (network idle), wait for any animations to complete, hide any cookie banners or popups if present. Save all screenshots to the ./screenshots/ directory."
 
-             Capture these specific screenshots:
-             1. Full page screenshot at desktop (1920x1080) - save as 'desktop-full.png'
-             2. Full page screenshot at tablet (768x1024) - save as 'tablet-full.png'
-             3. Full page screenshot at mobile (375x667) - save as 'mobile-full.png'
-             4. Above-the-fold screenshot at desktop - save as 'desktop-fold.png'
-             5. Navigation/header area - save as 'navigation.png'
-             6. Footer area - save as 'footer.png'
-
-             For each viewport:
-             - Wait for the page to fully load (network idle)
-             - Wait for any animations to complete
-             - Hide any cookie banners or popups if present
-
-             Save all screenshots to the ./screenshots/ directory.
-             Use descriptive filenames as specified above."
+          npx @anthropic-ai/claude-code --print --mcp-config .claude/mcp-config.json "$PROMPT"
 
       - name: Run Visual Regression Comparison
         if: ${{ !inputs.update_baseline }}
