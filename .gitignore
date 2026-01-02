@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Screenshots (generated during testing)
+screenshots/
+
+# Reports (generated during testing)
+qa-report.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local

@@ -1,0 +1,134 @@
+name: AI QA Engineer
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to test (optional, defaults to PR preview URL)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  qa-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright @anthropic-ai/claude-code
+          npx playwright install chromium --with-deps
+
+      - name: Wait for Preview Deployment
+        id: preview
+        if: github.event_name == 'pull_request'
+        run: |
+          # Wait for Vercel/Netlify/GitHub Pages preview deployment
+          # Customize this based on your deployment platform
+          echo "Waiting for preview deployment..."
+          sleep 30
+
+          # Set preview URL - customize based on your platform
+          # Examples:
+          # Vercel: https://${{ github.event.repository.name }}-git-${{ github.head_ref }}-${{ github.repository_owner }}.vercel.app
+          # Netlify: https://deploy-preview-${{ github.event.number }}--your-site.netlify.app
+          # GitHub Pages: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+
+          PREVIEW_URL="${{ inputs.url || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}"
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+          echo "Testing URL: $PREVIEW_URL"
+
+      - name: Run AI QA Engineer
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TEST_URL: ${{ steps.preview.outputs.preview_url || inputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          npx claude-code --print \
+            --mcp-config .claude/mcp-config.json \
+            --system-prompt "$(cat .claude/qa-engineer-prompt.md)" \
+            "Test the website at $TEST_URL.
+
+             Perform comprehensive QA testing:
+             1. Test on desktop viewport (1920x1080)
+             2. Test on mobile viewport (375x667)
+             3. Test all interactive elements
+             4. Check for visual bugs, broken layouts, console errors
+             5. Try to break things - test edge cases
+             6. Take screenshots of any issues found
+
+             Create a detailed markdown report with:
+             - Summary of findings
+             - Screenshots with descriptions
+             - Steps to reproduce any bugs
+             - Severity ratings (critical/high/medium/low)
+
+             Save the report to qa-report.md"
+
+      - name: Upload Screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-screenshots
+          path: screenshots/
+          retention-days: 7
+
+      - name: Post QA Report to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let report = '## AI QA Engineer Report\n\n';
+
+            if (fs.existsSync('qa-report.md')) {
+              report += fs.readFileSync('qa-report.md', 'utf8');
+            } else {
+              report += '⚠️ QA report was not generated. Check the workflow logs for details.';
+            }
+
+            report += '\n\n---\n*Automated testing by AI QA Engineer using Claude Code + Playwright*';
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.body.includes('AI QA Engineer Report')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: report
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: report
+              });
+            }
