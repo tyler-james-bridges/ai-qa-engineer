@@ -35,7 +35,7 @@
     "install:browsers": "playwright install chromium"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^1.0.0",
+    "@anthropic-ai/claude-code": "^2.0.76",
     "playwright": "^1.48.0"
   },
   "devDependencies": {
