@@ -1,0 +1,10 @@
+{
+  "source": "openclaw-scheduler",
+  "locator": "job:nightly-sync",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "accessible": false,
+  "error": {
+    "message": "scheduler API returned 403"
+  }
+}

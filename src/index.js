@@ -5,11 +5,15 @@ const { capturePage } = require('./capture');
 const { getProvider } = require('./providers');
 const { reviewPR, formatReviewMarkdown } = require('./review');
 const { generateTests } = require('./generate');
+const { verify, formatHuman, EXIT_CODES } = require('./verify');
+const { VerificationInputError, VerificationRuntimeError } = require('./verify/errors');
 
 // Route to the right command
 const command = process.argv[2];
 
-if (command === 'review') {
+if (command === 'verify') {
+  runVerify().catch(handleVerifyError);
+} else if (command === 'review') {
   runReview().catch((err) => {
     console.error('\nError:', err.message);
     process.exit(1);
@@ -45,6 +49,7 @@ Usage:
   qai scan <url>                    Visual QA analysis
   qai review <pr> [options]         PR code review
   qai generate <url|file> [options] Test generation
+  qai verify <contract> [options]   Verify an agent completion claim
   qai help                          Show this help
   qai --version                     Show version
 
@@ -66,6 +71,13 @@ Generate options:
   --framework <name>          playwright|jest|vitest
   --dry-run                   Print to stdout instead of writing files
 
+Verify options:
+  <contract>                  Reviewed JSON verification contract
+  --claim <file|->            Agent completion claim file or stdin
+  --repo <path>               Repository path (default: current directory)
+  --json                      Emit one JSON document to stdout
+  --out <path>                Persist report without overwriting files
+
 Environment:
   ANTHROPIC_API_KEY           Use Anthropic Claude
   OPENAI_API_KEY              Use OpenAI GPT-4
@@ -78,7 +90,59 @@ Examples:
   qai review --base main --focus security
   qai generate https://mysite.com
   qai generate src/utils.ts --dry-run
+  qai verify .qai/task.json --claim completion.md
   `);
+}
+
+/**
+ * Run evidence-based completion verification.
+ */
+async function runVerify() {
+  const args = process.argv.slice(3);
+  const options = { repoPath: process.cwd() };
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--claim' && args[i + 1]) {
+      options.claimPath = args[++i];
+    } else if (args[i] === '--repo' && args[i + 1]) {
+      options.repoPath = args[++i];
+    } else if (args[i] === '--out' && args[i + 1]) {
+      options.outPath = args[++i];
+    } else if (args[i] === '--json') {
+      options.json = true;
+    } else if (args[i].startsWith('--')) {
+      throw new VerificationInputError(`Unknown verify option: ${args[i]}.`);
+    } else if (!options.contractPath) {
+      options.contractPath = args[i];
+    } else {
+      throw new VerificationInputError(`Unexpected verify argument: ${args[i]}.`);
+    }
+  }
+
+  if (!options.contractPath) {
+    throw new VerificationInputError(
+      'Usage: qai verify <contract> --claim <file|-> [--repo <path>] [--json] [--out <path>]',
+    );
+  }
+
+  if (!options.json) console.error('qai verify: collecting declared read-only evidence...');
+  const result = await verify(options);
+  if (options.json) {
+    process.stdout.write(JSON.stringify(result.report, null, 2) + '\n');
+  } else {
+    process.stdout.write(formatHuman(result.report) + '\n');
+  }
+  process.exitCode = result.exitCode;
+}
+
+function handleVerifyError(error) {
+  const isKnown =
+    error instanceof VerificationInputError || error instanceof VerificationRuntimeError;
+  const prefix = error instanceof VerificationInputError ? 'Input error' : 'Verifier error';
+  console.error(`${prefix}: ${error.message}`);
+  for (const detail of error.details || []) console.error(`- ${detail}`);
+  if (!isKnown && process.env.DEBUG) console.error(error.stack);
+  process.exitCode = EXIT_CODES.verifier_error;
 }
 
 /**

@@ -1,0 +1,11 @@
+{
+  "source": "production-api",
+  "locator": "https://example.test/api/profile",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "environment": "production",
+  "matchedSentinels": [],
+  "schemaValid": true,
+  "provenanceValid": null,
+  "heuristicSuspicion": true
+}

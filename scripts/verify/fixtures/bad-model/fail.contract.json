@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "task": "Fix specialist model configuration",
+  "revision": "REVISION",
+  "criteria": [
+    {
+      "id": "AC-MODEL",
+      "text": "Configured subagent route starts with an accessible model",
+      "required": true,
+      "checks": [
+        {
+          "type": "git.local"
+        },
+        {
+          "type": "provider.model",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4",
+          "route": "specialist/research",
+          "evidence": "fail.json"
+        }
+      ]
+    }
+  ]
+}

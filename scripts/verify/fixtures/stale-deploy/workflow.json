@@ -1,0 +1,13 @@
+{
+  "source": "github",
+  "locator": "github:actions/run/481",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "workflow": "test.yml",
+  "runId": 481,
+  "attempt": 1,
+  "headSha": "REVISION",
+  "status": "completed",
+  "conclusion": "success",
+  "testsExecuted": 84
+}

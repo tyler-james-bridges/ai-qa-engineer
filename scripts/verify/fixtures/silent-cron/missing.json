@@ -1,0 +1,15 @@
+{
+  "source": "openclaw-scheduler",
+  "locator": "job:nightly-sync",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "enabled": true,
+  "schedule": "0 2 * * *",
+  "timezone": "UTC",
+  "invocationId": null,
+  "status": null,
+  "postcondition": null,
+  "dueAt": "2026-08-03T02:00:00.000Z",
+  "revision": "REVISION",
+  "environment": "production"
+}

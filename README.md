@@ -122,3 +122,27 @@ Works with any major LLM. Set one env var:
 ## License
 
 MIT
+
+## `qai verify` — Agent Completion Verification
+
+Verify an agent's completion claim against a reviewed JSON contract and independently collected,
+read-only evidence:
+
+```bash
+qai verify .qai/task.json --claim completion.md
+qai verify .qai/task.json --claim completion.md --json
+```
+
+`verify` evaluates every required acceptance criterion and returns `PASS` (exit `0`), `FAIL`
+(exit `1`), `NEEDS HUMAN REVIEW` (exit `2`), or a verifier/input error (exit `3`). Missing,
+stale, inaccessible, or ambiguous evidence never becomes a pass. Use `--out <path>` to persist a
+report; by default the command does not write into the repository.
+
+- `PASS` requires every independent check to be current and bound to the observed subject. Claim
+  coverage is traceability metadata, never sole proof. Missing, stale, future-dated, inaccessible, or
+  ambiguous evidence cannot pass.
+- Recorded evidence must include `observedAt` plus either `freshUntil` or a contract `maxAge`;
+  external observations also require immutable locators/IDs and exact URL, environment, revision,
+  workflow, schedule, provider, model, or route identity where applicable.
+- `git.local` requires the target full SHA and a clean worktree. `verify` disables repository
+  filesystem-monitor execution while inspecting Git state.

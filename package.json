@@ -49,8 +49,8 @@
     "start": "node src/index.js",
     "lint": "eslint scripts/ src/",
     "lint:fix": "eslint scripts/ src/ --fix",
-    "test": "node --test scripts/**/*.test.js",
-    "test:watch": "node --test --watch scripts/**/*.test.js",
+    "test": "node --test scripts/**/*.test.js scripts/verify/**/*.test.js",
+    "test:watch": "node --test --watch scripts/**/*.test.js scripts/verify/**/*.test.js",
     "install:browsers": "playwright install chromium",
     "visual:compare": "node scripts/visual-regression.cjs compare",
     "visual:update-baseline": "node scripts/visual-regression.cjs update-baseline"

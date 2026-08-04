@@ -1,0 +1,11 @@
+{
+  "source": "http",
+  "locator": "https://example.test/health",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "url": "https://example.test/health",
+  "status": 200,
+  "body": {
+    "git_sha": "REVISION"
+  }
+}
