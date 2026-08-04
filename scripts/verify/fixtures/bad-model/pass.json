@@ -1,0 +1,11 @@
+{
+  "source": "anthropic",
+  "locator": "provider:model-check/55",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "provider": "anthropic",
+  "model": "claude-sonnet-4",
+  "catalogVisible": true,
+  "route": "specialist/research",
+  "smokeStatus": "success"
+}

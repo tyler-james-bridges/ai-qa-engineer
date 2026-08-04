@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1",
+  "task": "Deploy scheduler fix",
+  "revision": "REVISION",
+  "criteria": [
+    {
+      "id": "AC-DEPLOY",
+      "text": "Production serves the tested scheduler fix",
+      "required": true,
+      "checks": [
+        {
+          "type": "git.local"
+        },
+        {
+          "type": "github.workflow",
+          "workflow": "test.yml",
+          "conclusion": "success",
+          "minTests": 1,
+          "evidence": "workflow.json"
+        },
+        {
+          "type": "github.deployment",
+          "environment": "production",
+          "state": "success",
+          "evidence": "deployment-old.json"
+        },
+        {
+          "type": "http.revision",
+          "url": "https://example.test/health",
+          "jsonPath": "$.git_sha",
+          "equalsRevision": true,
+          "evidence": "live-old.json"
+        },
+        {
+          "type": "http.probe",
+          "url": "https://example.test/api/feature",
+          "status": 200,
+          "jsonPath": "$.ready",
+          "equals": true,
+          "evidence": "probe.json",
+          "environment": "production"
+        }
+      ]
+    }
+  ]
+}

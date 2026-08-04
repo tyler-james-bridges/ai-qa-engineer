@@ -1,0 +1,10 @@
+{
+  "source": "github",
+  "locator": "github:deployment/928",
+  "observedAt": "2026-08-03T23:40:00.000Z",
+  "freshUntil": "2026-08-04T23:40:00.000Z",
+  "deploymentId": 900,
+  "sha": "OLD_REVISION",
+  "environment": "production",
+  "state": "success"
+}

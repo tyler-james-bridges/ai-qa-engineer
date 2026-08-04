@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "task": "Replace fixture profile data",
+  "revision": "REVISION",
+  "criteria": [
+    {
+      "id": "AC-DATA",
+      "text": "Production uses provenance-backed live profile data",
+      "required": true,
+      "checks": [
+        {
+          "type": "git.local"
+        },
+        {
+          "type": "data.placeholder",
+          "sentinels": ["Jane Doe", "example@example.com", "TODO"],
+          "requireProvenance": true,
+          "environment": "production",
+          "evidence": "review.json"
+        }
+      ]
+    }
+  ]
+}

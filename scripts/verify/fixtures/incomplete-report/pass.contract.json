@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1",
+  "task": "Complete and deploy Poppy fix",
+  "revision": "REVISION",
+  "criteria": [
+    {
+      "id": "AC-REPORT",
+      "text": "Completion report addresses every required criterion",
+      "required": true,
+      "checks": [
+        {
+          "type": "git.local"
+        },
+        {
+          "type": "claim.coverage",
+          "criterionIds": ["AC-REPO", "AC-DEPLOY", "AC-AUTOMATION"]
+        }
+      ]
+    }
+  ]
+}
